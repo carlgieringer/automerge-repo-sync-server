@@ -22,27 +22,27 @@ export class Server {
   /** @type Repo */
   #repo
 
-  constructor() {
-    const dir =
-      process.env.DATA_DIR !== undefined ? process.env.DATA_DIR : ".amrg"
-    if (!fs.existsSync(dir)) {
+  constructor(options = {}) {
+    const {
+      dir = process.env.DATA_DIR || ".amrg",
+      storage = new NodeFSStorageAdapter(dir),
+      /** @ts-ignore @type {(import("@automerge/automerge-repo").PeerId)}  */
+      peerId = `storage-server-${os.hostname()}`,
+      port = process.env.PORT !== undefined ? parseInt(process.env.PORT) : 3030,
+    } = options
+    if (dir && !fs.existsSync(dir)) {
       fs.mkdirSync(dir)
     }
 
-    var hostname = os.hostname()
-
     this.#socket = new WebSocketServer({ noServer: true })
 
-    const PORT =
-      process.env.PORT !== undefined ? parseInt(process.env.PORT) : 3030
     const app = express()
     app.use(express.static("public"))
 
     const config = {
       network: [new NodeWSServerAdapter(this.#socket)],
-      storage: new NodeFSStorageAdapter(dir),
-      /** @ts-ignore @type {(import("@automerge/automerge-repo").PeerId)}  */
-      peerId: `storage-server-${hostname}`,
+      storage,
+      peerId,
       // Since this is a server, we don't share generously — meaning we only sync documents they already
       // know about and can ask for by ID.
       sharePolicy: async () => false,
@@ -53,8 +53,8 @@ export class Server {
       res.send(`👍 @automerge/automerge-repo-sync-server is running`)
     })
 
-    this.#server = app.listen(PORT, () => {
-      console.log(`Listening on port ${PORT}`)
+    this.#server = app.listen(port, () => {
+      console.log(`Listening on port ${port}`)
       this.#isReady = true
       this.#readyResolvers.forEach((resolve) => resolve(true))
     })
